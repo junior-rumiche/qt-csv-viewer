@@ -1,6 +1,7 @@
 from PyQt5.QtCore import Qt, QAbstractTableModel, QModelIndex
-from PyQt5.QtGui import QColor, QFont
+from PyQt5.QtGui import QColor, QFont, QBrush
 import pandas as pd
+import re
 
 
 class CSVTableModel(QAbstractTableModel):
@@ -23,8 +24,21 @@ class CSVTableModel(QAbstractTableModel):
         self._data = data if data is not None else pd.DataFrame()
         self._modified_cells = set()
         self.NULL_COLOR = QColor(128, 128, 128)
+        self.HIGHLIGHT_COLOR = QColor(255, 255, 0, 100)  # Amarillo semi-transparente
         self.header_font = QFont()
         self.header_font.setBold(True)
+        self.search_text = ""
+
+    def set_search_text(self, text):
+        """
+        Establece el texto de búsqueda actual para resaltado.
+
+        Args:
+            text (str): El texto a buscar y resaltar
+        """
+        self.search_text = text
+        # Notificar a la vista que los datos han cambiado para actualizar el resaltado
+        self.layoutChanged.emit()
 
     def data(self, index, role=Qt.DisplayRole):
         """
@@ -52,11 +66,17 @@ class CSVTableModel(QAbstractTableModel):
                 return self.NULL_COLOR
             return None
 
-        if (
-            role == Qt.BackgroundRole
-            and (index.row(), index.column()) in self._modified_cells
-        ):
-            return Qt.yellow
+        if role == Qt.BackgroundRole:
+            value = str(self._data.iloc[index.row(), index.column()])
+
+            # Si hay texto de búsqueda y coincide con el valor de la celda
+            if self.search_text and not pd.isna(value):
+                if re.search(re.escape(self.search_text), value, re.IGNORECASE):
+                    return self.HIGHLIGHT_COLOR
+
+            # Resaltar celdas modificadas
+            if (index.row(), index.column()) in self._modified_cells:
+                return Qt.yellow
 
         return None
 

@@ -349,25 +349,37 @@ class MainWindow(FluentWindow):
         Searches for the given text in the data.
 
         This method searches for the given text in all columns of the data and
-        updates the table model with the filtered data. If the text is empty or
-        the table model has no data, it does nothing. If there is an error while
-        searching the data, it shows an error message.
+        updates the table model with the filtered data. The search is always
+        performed on the original data to avoid búsquedas "pegadas".
         """
-        if not text or self.table_model.get_data() is None:
+        if self.table_model.get_data() is None:
             return
 
         try:
-            # Search in all columns
-            df = self.table_model.get_data()
+            # Actualizar el texto de búsqueda en el modelo para resaltado
+            self.table_model.set_search_text(text.strip())
+
+            # Siempre cargar los datos originales para la búsqueda
+            if self.current_file:
+                original_df = pd.read_csv(self.current_file)
+            else:
+                return
+
+            # Si no hay texto de búsqueda, mostrar todos los datos
+            if not text.strip():
+                self.table_model.update_data(original_df)
+                return
+
+            # Buscar en todas las columnas sobre los datos originales
             mask = (
-                df.astype(str)
+                original_df.astype(str)
                 .apply(lambda x: x.str.contains(text, case=False))
                 .any(axis=1)
             )
-            filtered_df = df[mask]
+            filtered_df = original_df[mask]
             self.table_model.update_data(filtered_df)
         except Exception as e:
-            self.show_error_message(f"Error searching data: {str(e)}")
+            self.show_error_message(f"Error al buscar datos: {str(e)}")
 
     def show_error_message(self, message):
         """
