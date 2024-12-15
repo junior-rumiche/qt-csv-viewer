@@ -31,13 +31,13 @@ class CSVTableModel(QAbstractTableModel):
 
     def set_search_text(self, text):
         """
-        Establece el texto de búsqueda actual para resaltado.
+        Sets the current search text for highlighting.
 
         Args:
-            text (str): El texto a buscar y resaltar
+            text (str): The text to search and highlight
         """
         self.search_text = text
-        # Notificar a la vista que los datos han cambiado para actualizar el resaltado
+        # Notify views that data has changed to update highlighting
         self.layoutChanged.emit()
 
     def data(self, index, role=Qt.DisplayRole):
@@ -69,12 +69,12 @@ class CSVTableModel(QAbstractTableModel):
         if role == Qt.BackgroundRole:
             value = str(self._data.iloc[index.row(), index.column()])
 
-            # Si hay texto de búsqueda y coincide con el valor de la celda
+            # If there is search text and it matches the cell value
             if self.search_text and not pd.isna(value):
                 if re.search(re.escape(self.search_text), value, re.IGNORECASE):
                     return self.HIGHLIGHT_COLOR
 
-            # Resaltar celdas modificadas
+            # Highlight modified cells
             if (index.row(), index.column()) in self._modified_cells:
                 return Qt.yellow
 

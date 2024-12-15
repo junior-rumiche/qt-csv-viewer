@@ -5,7 +5,6 @@ from PyQt5.QtWidgets import (
     QWidget,
     QFileDialog,
     QDesktopWidget,
-    QMenu,
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
@@ -16,6 +15,8 @@ from qfluentwidgets import (
     InfoBarPosition,
     FluentIcon,
     PushButton,
+    RoundMenu,
+    Action,
 )
 from qfluentwidgets import setTheme, Theme
 
@@ -128,8 +129,8 @@ class MainWindow(FluentWindow):
 
     def show_header_context_menu(self, position):
         """
-        Shows a context menu for the horizontal header of the table view at the
-        given position. The context menu is used to remove columns from the table.
+        Shows a context menu for the table header at the given position.
+        The context menu is used to remove columns from the table.
 
         Args:
             position (QPoint): Point where the context menu should be shown.
@@ -141,28 +142,28 @@ class MainWindow(FluentWindow):
         if column_index < 0:
             return
 
-        # Get the column name
+        # Get column name
         column_name = self.table_model.get_data().columns[column_index]
 
-        # Create context menu
-        context_menu = QMenu(self)
+        # Create rounded context menu
+        menu = RoundMenu(parent=self)
 
         # Action to delete column
-        delete_action = context_menu.addAction(f"Delete Column '{column_name}'")
-        delete_action.setIcon(FluentIcon.DELETE.icon())
-
-        # Show menu at cursor position
-        action = context_menu.exec_(
-            self.table_view.horizontalHeader().viewport().mapToGlobal(position)
+        menu.addAction(
+            Action(
+                FluentIcon.DELETE,
+                f"Delete Column '{column_name}'",
+                triggered=lambda: self.delete_column(column_index),
+            )
         )
 
-        if action == delete_action:
-            self.delete_column(column_index)
+        # Show menu at cursor position
+        menu.exec_(self.table_view.horizontalHeader().viewport().mapToGlobal(position))
 
     def show_rows_context_menu(self, position):
         """
-        Shows a context menu for the rows in the table view at the given
-        position. The context menu is used to remove rows from the table.
+        Shows a context menu for the rows at the given position.
+        The menu is used to add or remove rows from the table.
 
         Args:
             position (QPoint): Point where the context menu should be shown.
@@ -175,32 +176,37 @@ class MainWindow(FluentWindow):
         for index in self.table_view.selectionModel().selectedIndexes():
             selected_rows.add(index.row())
 
-        # Create context menu
-        context_menu = QMenu(self)
+        # Create rounded context menu
+        menu = RoundMenu(parent=self)
 
         # Action to add new row
-        add_action = context_menu.addAction("Agregar Nueva Fila")
-        add_action.setIcon(FluentIcon.ADD.icon())
+        menu.addAction(
+            Action(
+                FluentIcon.ADD,
+                "Add New Row",
+                triggered=lambda: self.add_row(
+                    max(selected_rows)
+                    if selected_rows
+                    else self.table_model.rowCount() - 1
+                ),
+            )
+        )
 
         if selected_rows:
+            # Add separator
+            menu.addSeparator()
+
             # Action to delete rows
-            delete_action = context_menu.addAction(
-                f"Delete {len(selected_rows)} Selected Row(s)"
+            menu.addAction(
+                Action(
+                    FluentIcon.DELETE,
+                    f"Delete {len(selected_rows)} Selected Row(s)",
+                    triggered=self.delete_selected_rows,
+                )
             )
-            delete_action.setIcon(FluentIcon.DELETE.icon())
 
         # Show menu at cursor position
-        action = context_menu.exec_(self.table_view.viewport().mapToGlobal(position))
-
-        if action == add_action:
-            # If rows are selected, add after the last selected row
-            # Otherwise add at the end of the table
-            after_row = (
-                max(selected_rows) if selected_rows else self.table_model.rowCount() - 1
-            )
-            self.add_row(after_row)
-        elif selected_rows and action == delete_action:
-            self.delete_selected_rows()
+        menu.exec_(self.table_view.viewport().mapToGlobal(position))
 
     def delete_selected_rows(self):
         """
@@ -350,27 +356,27 @@ class MainWindow(FluentWindow):
 
         This method searches for the given text in all columns of the data and
         updates the table model with the filtered data. The search is always
-        performed on the original data to avoid búsquedas "pegadas".
+        performed on the original data to avoid "stuck" searches.
         """
         if self.table_model.get_data() is None:
             return
 
         try:
-            # Actualizar el texto de búsqueda en el modelo para resaltado
+            # Update search text in model for highlighting
             self.table_model.set_search_text(text.strip())
 
-            # Siempre cargar los datos originales para la búsqueda
+            # Always load original data for search
             if self.current_file:
                 original_df = pd.read_csv(self.current_file)
             else:
                 return
 
-            # Si no hay texto de búsqueda, mostrar todos los datos
+            # If no search text, show all data
             if not text.strip():
                 self.table_model.update_data(original_df)
                 return
 
-            # Buscar en todas las columnas sobre los datos originales
+            # Search in all columns on original data
             mask = (
                 original_df.astype(str)
                 .apply(lambda x: x.str.contains(text, case=False))
@@ -379,7 +385,7 @@ class MainWindow(FluentWindow):
             filtered_df = original_df[mask]
             self.table_model.update_data(filtered_df)
         except Exception as e:
-            self.show_error_message(f"Error al buscar datos: {str(e)}")
+            self.show_error_message(f"Error searching data: {str(e)}")
 
     def show_error_message(self, message):
         """
@@ -432,6 +438,6 @@ class MainWindow(FluentWindow):
         """
         try:
             if self.table_model.add_row(after_row_index):
-                self.show_info_message("Nueva fila agregada exitosamente")
+                self.show_info_message("New row added successfully")
         except Exception as e:
-            self.show_error_message(f"Error al agregar fila: {str(e)}")
+            self.show_error_message(f"Error adding row: {str(e)}")
