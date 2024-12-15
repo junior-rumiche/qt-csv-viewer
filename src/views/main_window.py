@@ -1,13 +1,13 @@
 from PyQt5.QtWidgets import (
-    QTableView,
     QVBoxLayout,
     QHBoxLayout,
     QWidget,
     QFileDialog,
     QDesktopWidget,
+    QTableWidgetItem,
 )
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QColor, QIcon
 from qfluentwidgets import (
     SearchLineEdit,
     FluentWindow,
@@ -17,31 +17,27 @@ from qfluentwidgets import (
     PushButton,
     RoundMenu,
     Action,
+    TableWidget,
 )
 from qfluentwidgets import setTheme, Theme
 
-
 import pandas as pd
-from .table_model import CSVTableModel
 
 
 class MainWindow(FluentWindow):
-    """This class represents the main window of the application. It contains a data table, buttons for basic operations, and a search bar for filtering the data.
+    """This class represents the main window of the application
+    . It contains a data table,
+    buttons for basic operations, and a search bar for filtering the data.
 
     Attributes:
         main_widget (QWidget): The main widget of the application.
         main_layout (QVBoxLayout): The main layout of the application.
-        table_view (QTableView): The table view for displaying the data.
+        table_view (TableWidget): The table widget for displaying the data.
         search_bar (SearchLineEdit): The search bar for filtering the data.
         button_container (QWidget): The container for the buttons.
         button_layout (QHBoxLayout): The layout for the buttons.
-        open_button (PushButton): The button for opening a file.
-        save_button (PushButton): The button for saving the file.
-        save_as_button (PushButton): The button for saving the file as.
-        theme_button (PushButton): The button for toggling the theme.
         dark_theme (bool): Whether the dark theme is enabled.
         current_file (str): The path of the currently loaded file.
-        table_model (CSVTableModel): The model for the table view.
     """
 
     def __init__(self):
@@ -49,6 +45,7 @@ class MainWindow(FluentWindow):
         self.setWindowTitle("Modern CSV Viewer")
         self.resize(1700, 900)
         self.center_window()
+        self.setWindowIcon(QIcon("assets/icons/icon.png"))
 
         # Create main widget
         self.main_widget = QWidget()
@@ -62,8 +59,6 @@ class MainWindow(FluentWindow):
 
         # Data handling
         self.current_file = None
-        self.table_model = CSVTableModel()
-        self.table_view.setModel(self.table_model)
 
         # Set initial theme
         self.dark_theme = False
@@ -86,10 +81,9 @@ class MainWindow(FluentWindow):
         """
         Setup the main window UI.
 
-        This method is responsible for creating and setting up all UI components
-        such as the button container, search bar and table view. It also adds the
-        main widget to the window and sets the current item in the navigation
-        interface to the main interface.
+        This method is responsible for creating and setting
+        up all UI components
+        such as the button container, search bar and table view.
         """
         # Button container
         self.button_container = QWidget(self.main_widget)
@@ -102,22 +96,18 @@ class MainWindow(FluentWindow):
         self.search_bar.setPlaceholderText("Search in data...")
         self.main_layout.addWidget(self.search_bar)
 
-        # Table view
-        self.table_view = QTableView(self.main_widget)
-        self.table_view.setAlternatingRowColors(True)
-        self.table_view.horizontalHeader().setStretchLastSection(True)
-        self.table_view.horizontalHeader().setHighlightSections(True)
-        self.table_view.horizontalHeader().setDefaultAlignment(
-            Qt.AlignLeft | Qt.AlignVCenter
-        )
-
+        # Table view with modern design
+        self.table_view = TableWidget(self.main_widget)
+        self.table_view.setBorderVisible(True)
+        self.table_view.setBorderRadius(8)
+        self.table_view.setWordWrap(False)
         self.table_view.verticalHeader().hide()
 
+        # Set context menu policies
         self.table_view.horizontalHeader().setContextMenuPolicy(Qt.CustomContextMenu)
         self.table_view.horizontalHeader().customContextMenuRequested.connect(
             self.show_header_context_menu
         )
-
         self.table_view.setContextMenuPolicy(Qt.CustomContextMenu)
         self.table_view.customContextMenuRequested.connect(self.show_rows_context_menu)
 
@@ -127,6 +117,102 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.main_widget, FluentIcon.HOME, "CSV Viewer")
         self.navigationInterface.setCurrentItem("mainInterface")
 
+    def create_null_item(self):
+        """
+        Creates a table item with NULL text and proper styling.
+
+        Returns:
+            QTableWidgetItem: A styled NULL table item
+        """
+        item = QTableWidgetItem("NULL")
+        item.setForeground(QColor(169, 169, 169))  # Dark gray color
+        return item
+
+    def update_table_data(self, df):
+        """
+        Updates the table with data from a pandas DataFrame.
+
+        Args:
+            df (pandas.DataFrame): The DataFrame containing the data to display
+        """
+        if df is None:
+            return
+
+        # Set table dimensions
+        self.table_view.setRowCount(len(df))
+        self.table_view.setColumnCount(len(df.columns))
+
+        # Set headers
+        self.table_view.setHorizontalHeaderLabels(df.columns)
+
+        # Fill table with data
+        for i in range(len(df)):
+            for j in range(len(df.columns)):
+                value = df.iloc[i, j]
+                # Convert value to string, handle None/NaN
+                if pd.isna(value) or value is None:
+                    self.table_view.setItem(i, j, self.create_null_item())
+                else:
+                    self.table_view.setItem(i, j, QTableWidgetItem(str(value)))
+
+    def open_file(self):
+        """
+        Opens a CSV file.
+        """
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Open CSV File", "", "CSV Files (*.csv);;All Files (*)"
+        )
+        if file_name:
+            try:
+                # Load CSV without using first column as index
+                df = pd.read_csv(file_name)
+                self.current_file = file_name
+                self.update_table_data(df)
+                self.show_info_message(f"File loaded: {file_name}")
+            except Exception as e:
+                self.show_error_message(f"Error opening file: {str(e)}")
+
+    def save_file(self):
+        """
+        Saves the current file.
+        """
+        if self.current_file:
+            try:
+                # Get data from table
+                df = self.get_table_data()
+                # Save without indices
+                df.to_csv(self.current_file, index=False)
+                self.show_info_message("File saved successfully")
+            except Exception as e:
+                self.show_error_message(f"Error saving file: {str(e)}")
+
+    def get_table_data(self):
+        """
+        Gets the current table data as a pandas DataFrame.
+
+        Returns:
+            pandas.DataFrame: The current table data
+        """
+        rows = self.table_view.rowCount()
+        cols = self.table_view.columnCount()
+        headers = [self.table_view.horizontalHeaderItem(i).text() for i in range(cols)]
+
+        # Create empty DataFrame
+        df = pd.DataFrame(columns=headers)
+
+        # Fill DataFrame with table data
+        for i in range(rows):
+            row_data = []
+            for j in range(cols):
+                item = self.table_view.item(i, j)
+                if item is None or item.text() == "NULL":
+                    row_data.append(None)
+                else:
+                    row_data.append(item.text())
+            df.loc[i] = row_data
+
+        return df
+
     def show_header_context_menu(self, position):
         """
         Shows a context menu for the table header at the given position.
@@ -135,15 +221,12 @@ class MainWindow(FluentWindow):
         Args:
             position (QPoint): Point where the context menu should be shown.
         """
-        if self.table_model.get_data() is None:
-            return
-
         column_index = self.table_view.horizontalHeader().logicalIndexAt(position)
         if column_index < 0:
             return
 
         # Get column name
-        column_name = self.table_model.get_data().columns[column_index]
+        column_name = self.table_view.horizontalHeaderItem(column_index).text()
 
         # Create rounded context menu
         menu = RoundMenu(parent=self)
@@ -168,16 +251,11 @@ class MainWindow(FluentWindow):
         Args:
             position (QPoint): Point where the context menu should be shown.
         """
-        if self.table_model.get_data() is None:
-            return
-
-        # Get selected rows
-        selected_rows = set()
-        for index in self.table_view.selectionModel().selectedIndexes():
-            selected_rows.add(index.row())
-
         # Create rounded context menu
         menu = RoundMenu(parent=self)
+
+        # Get selected rows
+        selected_rows = set(item.row() for item in self.table_view.selectedItems())
 
         # Action to add new row
         menu.addAction(
@@ -187,7 +265,7 @@ class MainWindow(FluentWindow):
                 triggered=lambda: self.add_row(
                     max(selected_rows)
                     if selected_rows
-                    else self.table_model.rowCount() - 1
+                    else self.table_view.rowCount() - 1
                 ),
             )
         )
@@ -210,27 +288,31 @@ class MainWindow(FluentWindow):
 
     def delete_selected_rows(self):
         """
-        Deletes the selected rows from the table view.
-
-        This method checks if there are any selected rows in the table view and
-        if so, it removes them from the table model and shows an info message.
+        Deletes the selected rows from the table.
         """
-        rows = set(index.row() for index in self.table_view.selectedIndexes())
-        if not rows:
+        selected_rows = sorted(
+            set(item.row() for item in self.table_view.selectedItems()), reverse=True
+        )
+        if not selected_rows:
             return
 
         try:
-            # Sort rows in descending order to avoid index issues
-            for row in sorted(rows, reverse=True):
-                self.table_model.remove_row(row)
-            self.show_info_message(f"Deleted {len(rows)} row(s)")
+            for row in selected_rows:
+                self.table_view.removeRow(row)
+            self.show_info_message(f"Deleted {len(selected_rows)} row(s)")
         except Exception as e:
             self.show_error_message(f"Error deleting row(s): {str(e)}")
 
     def delete_column(self, column_index):
+        """
+        Deletes a column from the table.
+
+        Args:
+            column_index (int): The index of the column to delete.
+        """
         try:
-            self.table_model.remove_column(column_index)
-            self.show_info_message(f"Column deleted successfully")
+            self.table_view.removeColumn(column_index)
+            self.show_info_message("Column deleted successfully")
         except Exception as e:
             self.show_error_message(f"Error deleting column: {str(e)}")
 
@@ -276,68 +358,21 @@ class MainWindow(FluentWindow):
         """
         self.search_bar.textChanged.connect(self.search_data)
 
-    def open_file(self):
+    def save_file_as(self):
         """
-        Opens a CSV file.
-
-        This method shows a file dialog for the user to select a CSV file. If a
-        file is selected, it loads the file into the table model and shows an
-        info message.
+        Saves the current file with a new name.
         """
-        file_name, _ = QFileDialog.getOpenFileName(
-            self, "Open CSV File", "", "CSV Files (*.csv);;All Files (*)"
+        file_name, _ = QFileDialog.getSaveFileName(
+            self, "Save CSV File", "", "CSV Files (*.csv);;All Files (*)"
         )
         if file_name:
             try:
-                # Load CSV without using first column as index
-                df = pd.read_csv(file_name)
-                self.table_model.update_data(df)
+                df = self.get_table_data()
+                df.to_csv(file_name, index=False)
                 self.current_file = file_name
-                self.show_info_message(f"File loaded: {file_name}")
-            except Exception as e:
-                self.show_error_message(f"Error opening file: {str(e)}")
-
-    def save_file(self):
-        """
-        Saves the current file.
-
-        If the current file is not `None` and the table model has data, this
-        method saves the data from the table model to the current file without
-        indices and shows an info message. If there is an error, it shows an
-        error message.
-
-        If the current file is `None`, it calls the `save_file_as` method to
-        show a file dialog to the user to select a file to save to.
-        """
-        if self.current_file and self.table_model.get_data() is not None:
-            try:
-                # Save without indices
-                self.table_model.get_data().to_csv(self.current_file, index=False)
                 self.show_info_message("File saved successfully")
             except Exception as e:
                 self.show_error_message(f"Error saving file: {str(e)}")
-
-    def save_file_as(self):
-        """
-        Saves the current file as a new file.
-
-        This method shows a file dialog to the user to select a file to save
-        to. If a file is selected, it calls the `save_file` method to save the
-        data from the table model to the selected file without indices and
-        shows an info message. If there is an error, it shows an error message.
-        """
-        if self.table_model.get_data() is not None:
-            file_name, _ = QFileDialog.getSaveFileName(
-                self, "Save CSV File", "", "CSV Files (*.csv);;All Files (*)"
-            )
-            if file_name:
-                try:
-                    # Save without indices
-                    self.table_model.get_data().to_csv(file_name, index=False)
-                    self.current_file = file_name
-                    self.show_info_message("File saved successfully")
-                except Exception as e:
-                    self.show_error_message(f"Error saving file: {str(e)}")
 
     def toggle_theme(self):
         """
@@ -352,40 +387,44 @@ class MainWindow(FluentWindow):
 
     def search_data(self, text):
         """
-        Searches for the given text in the data.
+        Searches for the given text in the data and highlights matches.
 
-        This method searches for the given text in all columns of the data and
-        updates the table model with the filtered data. The search is always
-        performed on the original data to avoid "stuck" searches.
+        This method searches for the given text in all columns of the data,
+        shows/hides rows accordingly, and highlights matching text.
+        The search is case-insensitive.
         """
-        if self.table_model.get_data() is None:
+        search_text = text.strip().lower()
+
+        # Reset all cell backgrounds and show all rows
+        for row in range(self.table_view.rowCount()):
+            self.table_view.setRowHidden(row, False)
+            for col in range(self.table_view.columnCount()):
+                item = self.table_view.item(row, col)
+                if item:
+                    item.setBackground(Qt.transparent)
+
+        if not search_text:
             return
 
-        try:
-            # Update search text in model for highlighting
-            self.table_model.set_search_text(text.strip())
+        # Search and highlight matches
+        for row in range(self.table_view.rowCount()):
+            row_matches = False
+            for col in range(self.table_view.columnCount()):
+                item = self.table_view.item(row, col)
+                if item:
+                    cell_text = item.text().lower()
+                    if search_text in cell_text:
+                        row_matches = True
+                        # Create new item with same text but highlighted
+                        new_item = QTableWidgetItem(item.text())
+                        new_item.setBackground(
+                            QColor(255, 255, 0, 100)
+                        )  # Semi-transparent yellow
+                        self.table_view.setItem(row, col, new_item)
 
-            # Always load original data for search
-            if self.current_file:
-                original_df = pd.read_csv(self.current_file)
-            else:
-                return
-
-            # If no search text, show all data
-            if not text.strip():
-                self.table_model.update_data(original_df)
-                return
-
-            # Search in all columns on original data
-            mask = (
-                original_df.astype(str)
-                .apply(lambda x: x.str.contains(text, case=False))
-                .any(axis=1)
-            )
-            filtered_df = original_df[mask]
-            self.table_model.update_data(filtered_df)
-        except Exception as e:
-            self.show_error_message(f"Error searching data: {str(e)}")
+            # Hide rows that don't match
+            if not row_matches:
+                self.table_view.setRowHidden(row, True)
 
     def show_error_message(self, message):
         """
@@ -437,7 +476,13 @@ class MainWindow(FluentWindow):
             after_row_index (int): The index after which to insert the new row.
         """
         try:
-            if self.table_model.add_row(after_row_index):
-                self.show_info_message("New row added successfully")
+            new_row_index = after_row_index + 1
+            self.table_view.insertRow(new_row_index)
+
+            # Initialize new row with NULL values
+            for col in range(self.table_view.columnCount()):
+                self.table_view.setItem(new_row_index, col, self.create_null_item())
+
+            self.show_info_message("New row added successfully")
         except Exception as e:
             self.show_error_message(f"Error adding row: {str(e)}")

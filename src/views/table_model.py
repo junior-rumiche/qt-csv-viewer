@@ -1,5 +1,5 @@
 from PyQt5.QtCore import Qt, QAbstractTableModel, QModelIndex
-from PyQt5.QtGui import QColor, QFont, QBrush
+from PyQt5.QtGui import QColor, QFont
 import pandas as pd
 import re
 
@@ -7,10 +7,9 @@ import re
 class CSVTableModel(QAbstractTableModel):
     """
     A table model for displaying and editing CSV data.
-
-    This class represents a table model for displaying and editing CSV data. It
-    is based on the QAbstractTableModel class and provides the necessary methods
-    for displaying and editing the data.
+    This class represents a table model for displaying and editing CSV data. It is
+    based on the QAbstractTableModel class and provides the necessary methods for
+    displaying and editing the data.
 
     The data is stored in a Pandas DataFrame and can be accessed and modified
     using the methods of this class.
@@ -24,7 +23,7 @@ class CSVTableModel(QAbstractTableModel):
         self._data = data if data is not None else pd.DataFrame()
         self._modified_cells = set()
         self.NULL_COLOR = QColor(128, 128, 128)
-        self.HIGHLIGHT_COLOR = QColor(255, 255, 0, 100)  # Amarillo semi-transparente
+        self.HIGHLIGHT_COLOR = QColor(255, 255, 0, 100)
         self.header_font = QFont()
         self.header_font.setBold(True)
         self.search_text = ""
